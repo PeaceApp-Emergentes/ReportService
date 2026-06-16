@@ -10,7 +10,11 @@ import com.upc.pre.peaceapp.reports.domain.model.valueobjects.ReportState;
 import com.upc.pre.peaceapp.reports.domain.services.ReportCommandService;
 import com.upc.pre.peaceapp.reports.infrastructure.external.messaging.ReportEventPublisher;
 import com.upc.pre.peaceapp.reports.infrastructure.persistence.jpa.ReportRepository;
+import com.upc.pre.peaceapp.reports.application.internal.outboundservices.ExternalAlertService;
 import com.upc.pre.peaceapp.reports.application.internal.outboundservices.ExternalUserService;
+import com.upc.pre.peaceapp.reports.application.internal.services.DistrictResolverService;
+import com.upc.pre.peaceapp.reports.interfaces.ws.EmergencyWebSocketHandler;
+import com.upc.pre.peaceapp.reports.interfaces.ws.resources.EmergencyResource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,14 +28,23 @@ public class ReportCommandServiceImpl implements ReportCommandService {
 
     private final ReportRepository reportRepository;
     private final ExternalUserService userService;
+    private final ExternalAlertService alertService;
     private final ReportEventPublisher reportEventPublisher;
+    private final EmergencyWebSocketHandler emergencyWebSocketHandler;
+    private final DistrictResolverService districtResolverService;
 
     public ReportCommandServiceImpl(ReportRepository reportRepository,
                                     ExternalUserService userService,
-                                    ReportEventPublisher reportEventPublisher) {
+                                    ExternalAlertService alertService,
+                                    ReportEventPublisher reportEventPublisher,
+                                    EmergencyWebSocketHandler emergencyWebSocketHandler,
+                                    DistrictResolverService districtResolverService) {
         this.reportRepository = reportRepository;
         this.userService = userService;
+        this.alertService = alertService;
         this.reportEventPublisher = reportEventPublisher;
+        this.emergencyWebSocketHandler = emergencyWebSocketHandler;
+        this.districtResolverService = districtResolverService;
     }
 
     // ----------------------------------------------------
@@ -45,18 +58,28 @@ public class ReportCommandServiceImpl implements ReportCommandService {
             throw new IllegalArgumentException("User not found");
         }
 
+        String district = districtResolverService.resolve(command.latitude(), command.longitude())
+                .orElseGet(() -> {
+                    String requestedDistrict = districtResolverService.canonicalizeDistrict(command.district());
+                    return requestedDistrict != null ? requestedDistrict : DistrictResolverService.OUT_OF_COVERAGE;
+                });
+
         var report = new Report(
                 command.title(),
                 command.description(),
                 command.location(),
+                district,
                 command.type(),
                 command.userId(),
                 command.imageUrl(),
+                command.videoUrl(),
+                command.audioUrl(),
                 command.latitude(),
                 command.longitude()
         );
 
         report.setState(ReportState.PENDING);
+        report.setEmergency(command.isEmergency());
 
         var savedReport = reportRepository.save(report);
         log.info("Report created with ID: {}", savedReport.getId());
@@ -69,6 +92,13 @@ public class ReportCommandServiceImpl implements ReportCommandService {
                         LocalDateTime.now().toString()
                 )
         );
+
+        // Notify municipality dashboards in real time as soon as the report enters
+        // the district queue. Emergency reports also create a persistent alert.
+        if (Boolean.TRUE.equals(savedReport.getEmergency())) {
+            alertService.createEmergencyAlert(savedReport);
+        }
+        emergencyWebSocketHandler.broadcast(EmergencyResource.fromReport(savedReport));
 
         return Optional.of(savedReport);
     }
@@ -108,12 +138,9 @@ public class ReportCommandServiceImpl implements ReportCommandService {
         var report = reportRepository.findById(command.reportId())
                 .orElseThrow(() -> new IllegalArgumentException("Report not found"));
 
-        if (report.getState() != ReportState.PENDING) {
-            throw new IllegalStateException("Report must be PENDING to enter review");
-        }
-
-        report.setState(ReportState.IN_REVIEW);
+        report.markInReview();
         reportRepository.save(report);
+        alertService.deleteAlertsByReportId(report.getId());
 
         log.info("Report {} marked as IN_REVIEW", report.getId());
     }
@@ -125,7 +152,7 @@ public class ReportCommandServiceImpl implements ReportCommandService {
         var report = reportRepository.findById(command.reportId())
                 .orElseThrow(() -> new IllegalArgumentException("Report not found"));
 
-        report.setState(ReportState.APPROVED);
+        report.approve();
         reportRepository.save(report);
 
         log.info("Report {} approved", report.getId());
@@ -139,6 +166,19 @@ public class ReportCommandServiceImpl implements ReportCommandService {
                         LocalDateTime.now().toString()
                 )
         );
+    }
+    @Transactional
+    @Override
+    public void handle(AttendReportCommand command) {
+        log.info("Marking report ID {} as ATTENDED", command.reportId());
+
+        var report = reportRepository.findById(command.reportId())
+                .orElseThrow(() -> new IllegalArgumentException("Report not found"));
+
+        report.attend();
+        reportRepository.save(report);
+
+        log.info("Report {} attended", report.getId());
     }
     @Transactional
     @Override
@@ -163,6 +203,32 @@ public class ReportCommandServiceImpl implements ReportCommandService {
                         LocalDateTime.now().toString()
                 )
         );
+    }
+
+
+    // SET EMERGENCY FLAG (municipality override)
+    @Transactional
+    @Override
+    public void handle(SetReportEmergencyCommand command) {
+        log.info("Setting emergency={} for report ID {}", command.emergency(), command.reportId());
+
+        var report = reportRepository.findById(command.reportId())
+                .orElseThrow(() -> new IllegalArgumentException("Report not found"));
+
+        if (report.getState() == ReportState.REJECTED || report.getState() == ReportState.ATTENDED) {
+            throw new IllegalStateException("Rejected or attended reports cannot be marked as emergency");
+        }
+
+        report.setEmergency(command.emergency());
+        var saved = reportRepository.save(report);
+
+        log.info("Report {} emergency flag updated to {}", saved.getId(), command.emergency());
+
+        // US36: when a report is (re)marked as emergency, also push it live to the
+        // municipality dashboards. Unmarking does not broadcast.
+        if (Boolean.TRUE.equals(command.emergency())) {
+            emergencyWebSocketHandler.broadcast(EmergencyResource.fromReport(saved));
+        }
     }
 
 }

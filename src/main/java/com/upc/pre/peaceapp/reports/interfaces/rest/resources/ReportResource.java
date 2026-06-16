@@ -14,11 +14,14 @@ public record ReportResource(
         @Schema(description = "Report title", example = "Robo en la avenida principal")
         String title,
 
-        @Schema(description = "Report description", example = "Se reportó un robo a las 8 p.m. cerca del parque.")
+        @Schema(description = "Report description", example = "Incidente reportado por el ciudadano.")
         String description,
 
         @Schema(description = "Report location name or address", example = "Av. Primavera 123, Lima")
         String location,
+
+        @Schema(description = "District resolved from the report coordinates", example = "San Borja")
+        String district,
 
         @Schema(description = "Report type", example = "ROBBERY")
         ReportType type,
@@ -28,6 +31,12 @@ public record ReportResource(
 
         @Schema(description = "Image URL associated with the report", example = "https://example.com/images/report1.jpg")
         String imageUrl,
+
+        @Schema(description = "Video URL associated with the report", example = "https://example.com/videos/report1.mp4")
+        String videoUrl,
+
+        @Schema(description = "Audio URL associated with the report", example = "https://example.com/audio/report1.m4a")
+        String audioUrl,
 
         @Schema(description = "Latitude coordinate of the report", example = "-12.046374")
         String latitude,
@@ -42,5 +51,8 @@ public record ReportResource(
         Date createdAt,
 
         @Schema(description = "Date when the report was last updated", example = "2025-10-08T20:15:37.000+00:00")
-        Date updatedAt
+        Date updatedAt,
+
+        @Schema(description = "Whether the report is flagged as an emergency", example = "false")
+        Boolean isEmergency
 ) {}

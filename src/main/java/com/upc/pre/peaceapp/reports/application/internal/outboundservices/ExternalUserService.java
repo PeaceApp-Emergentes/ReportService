@@ -14,7 +14,8 @@ public class ExternalUserService {
     }
 
     public boolean existsById(Long userId) {
-        return userServiceClient.userExists(userId);
+        return Boolean.TRUE.equals(userServiceClient.userExists(userId))
+                || Boolean.TRUE.equals(userServiceClient.municipalityExists(userId));
     }
 
     public UserDto fetchById(Long userId) {

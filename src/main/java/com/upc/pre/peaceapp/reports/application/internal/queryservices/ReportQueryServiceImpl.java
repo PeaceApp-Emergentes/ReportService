@@ -5,6 +5,8 @@ import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportByIdQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportsByUserIdQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetAllReportsQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetPublicReportsQuery;
+import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportsByDistrictQuery;
+import com.upc.pre.peaceapp.reports.application.internal.services.DistrictResolverService;
 import com.upc.pre.peaceapp.reports.domain.model.valueobjects.ReportState;
 import com.upc.pre.peaceapp.reports.domain.services.ReportQueryService;
 import com.upc.pre.peaceapp.reports.infrastructure.persistence.jpa.ReportRepository;
@@ -19,9 +21,12 @@ import java.util.Optional;
 public class ReportQueryServiceImpl implements ReportQueryService {
 
     private final ReportRepository reportRepository;
+    private final DistrictResolverService districtResolverService;
 
-    public ReportQueryServiceImpl(ReportRepository reportRepository) {
+    public ReportQueryServiceImpl(ReportRepository reportRepository,
+                                  DistrictResolverService districtResolverService) {
         this.reportRepository = reportRepository;
+        this.districtResolverService = districtResolverService;
     }
 
     @Override
@@ -44,7 +49,14 @@ public class ReportQueryServiceImpl implements ReportQueryService {
 
     @Override
     public List<Report> handle(GetPublicReportsQuery query) {
-        log.info("Fetching public (APPROVED) reports");
-        return reportRepository.findAllByState(ReportState.APPROVED);
+        log.info("Fetching public (APPROVED or ATTENDED) reports");
+        return reportRepository.findAllByStateIn(List.of(ReportState.APPROVED, ReportState.ATTENDED));
+    }
+
+    @Override
+    public List<Report> handle(GetReportsByDistrictQuery query) {
+        String district = districtResolverService.canonicalizeDistrict(query.district());
+        log.info("Fetching reports for district: {}", district);
+        return reportRepository.findAllByDistrictIgnoreCase(district);
     }
 }

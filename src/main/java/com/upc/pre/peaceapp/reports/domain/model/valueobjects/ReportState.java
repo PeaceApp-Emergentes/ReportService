@@ -4,5 +4,6 @@ public enum ReportState {
     PENDING,
     IN_REVIEW,
     APPROVED,
+    ATTENDED,
     REJECTED
 }

@@ -6,11 +6,15 @@ public record CreateReportCommand(
         String title,
         String description,
         String location,
+        String district,
         ReportType type,
         Long userId,
         String imageUrl,
+        String videoUrl,
+        String audioUrl,
         String latitude,
-        String longitude
+        String longitude,
+        boolean isEmergency
 ) {
     public CreateReportCommand {
         if (title == null || title.isBlank())

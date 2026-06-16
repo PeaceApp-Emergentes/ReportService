@@ -5,12 +5,14 @@ import com.upc.pre.peaceapp.reports.domain.model.commands.*;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetPublicReportsQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportByIdQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportsByUserIdQuery;
+import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportsByDistrictQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetAllReportsQuery;
 import com.upc.pre.peaceapp.reports.domain.services.ReportCommandService;
 import com.upc.pre.peaceapp.reports.domain.services.ReportQueryService;
 import com.upc.pre.peaceapp.reports.interfaces.rest.resources.RejectReportResource;
 import com.upc.pre.peaceapp.reports.interfaces.rest.resources.ReportResource;
 import com.upc.pre.peaceapp.reports.interfaces.rest.resources.CreateReportResource;
+import com.upc.pre.peaceapp.reports.interfaces.rest.resources.UpdateEmergencyResource;
 import com.upc.pre.peaceapp.reports.interfaces.rest.transform.ReportResourceFromEntityAssembler;
 import com.upc.pre.peaceapp.reports.interfaces.rest.transform.CreateReportCommandFromResourceAssembler;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,20 +56,20 @@ public class ReportController {
         return ResponseEntity.ok(exists);
     }
     // ----------------------------------------------------------------------
-// GET PUBLIC REPORTS (STATE = APPROVED)
+// GET PUBLIC REPORTS (STATE = APPROVED OR ATTENDED)
 // ----------------------------------------------------------------------
-    @Operation(summary = "Get all approved public reports",
-            description = "Returns all reports that are marked as APPROVED.")
+    @Operation(summary = "Get all public reports",
+            description = "Returns all reports that are marked as APPROVED or ATTENDED.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Approved reports retrieved successfully",
+            @ApiResponse(responseCode = "200", description = "Public reports retrieved successfully",
                     content = @Content(mediaType = APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ReportResource.class))),
-            @ApiResponse(responseCode = "204", description = "No approved reports found")
+            @ApiResponse(responseCode = "204", description = "No public reports found")
     })
     @GetMapping("/public")
     public ResponseEntity<List<ReportResource>> getPublicReports() {
 
-        log.info("Fetching all APPROVED public reports");
+        log.info("Fetching all APPROVED or ATTENDED public reports");
 
         var reports = reportQueryService.handle(new GetPublicReportsQuery());
 
@@ -150,7 +152,7 @@ public class ReportController {
                     ReportResourceFromEntityAssembler.toResourceFromEntity(updated)
             );
 
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -174,7 +176,31 @@ public class ReportController {
                     ReportResourceFromEntityAssembler.toResourceFromEntity(updated)
             );
 
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
+
+    // ----------------------------------------------------------------------
+// CHANGE REPORT STATE: ATTENDED
+// ----------------------------------------------------------------------
+    @Operation(summary = "Mark a report as attended")
+    @PutMapping("/{id}/attend")
+    public ResponseEntity<?> attendReport(@PathVariable Long id) {
+
+        try {
+            reportCommandService.handle(new AttendReportCommand(id));
+
+            var updated = reportQueryService.handle(new GetReportByIdQuery(id))
+                    .orElseThrow();
+
+            return ResponseEntity.ok(
+                    ReportResourceFromEntityAssembler.toResourceFromEntity(updated)
+            );
+
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -200,7 +226,7 @@ public class ReportController {
                     ReportResourceFromEntityAssembler.toResourceFromEntity(updated)
             );
 
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -208,8 +234,30 @@ public class ReportController {
     }
 
     // ----------------------------------------------------------------------
-    // GET REPORTS BY USER ID
+    // SET EMERGENCY FLAG (municipality override)
     // ----------------------------------------------------------------------
+    @Operation(summary = "Flag/unflag a report as emergency",
+            description = "Allows the municipality to mark a report as emergency or remove that mark.")
+    @PutMapping("/{id}/emergency")
+    public ResponseEntity<?> setReportEmergency(@PathVariable Long id,
+                                                @RequestBody UpdateEmergencyResource resource) {
+        try {
+            reportCommandService.handle(
+                    new SetReportEmergencyCommand(id, Boolean.TRUE.equals(resource.isEmergency())));
+
+            var updated = reportQueryService.handle(new GetReportByIdQuery(id))
+                    .orElseThrow();
+
+            return ResponseEntity.ok(
+                    ReportResourceFromEntityAssembler.toResourceFromEntity(updated)
+            );
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
+
     @Operation(summary = "Get reports by user ID",
             description = "Retrieve all reports created by a specific user.")
     @ApiResponses(value = {
@@ -229,6 +277,25 @@ public class ReportController {
         var reports = reportQueryService.handle(query);
 
         if (reports.isEmpty()) return ResponseEntity.notFound().build();
+
+        var reportResources = reports.stream()
+                .map(ReportResourceFromEntityAssembler::toResourceFromEntity)
+                .toList();
+
+        return ResponseEntity.ok(reportResources);
+    }
+
+    @Operation(summary = "Get reports by district",
+            description = "Retrieve all reports resolved inside a municipality district.")
+    @GetMapping("/district/{district}")
+    public ResponseEntity<List<ReportResource>> getReportsByDistrict(
+            @Parameter(description = "District name", required = true)
+            @PathVariable String district) {
+
+        log.info("Fetching reports for district: {}", district);
+
+        var reports = reportQueryService.handle(new GetReportsByDistrictQuery(district));
+        if (reports.isEmpty()) return ResponseEntity.noContent().build();
 
         var reportResources = reports.stream()
                 .map(ReportResourceFromEntityAssembler::toResourceFromEntity)

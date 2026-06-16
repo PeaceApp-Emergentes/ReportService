@@ -15,5 +15,9 @@ public interface ReportCommandService {
 
     void handle(ApproveReportCommand command);
 
+    void handle(AttendReportCommand command);
+
     void handle(RejectReportCommand command);
+
+    void handle(SetReportEmergencyCommand command);
 }

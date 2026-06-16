@@ -16,4 +16,7 @@ public interface UserServiceClient {
     UserDto getUserById(@PathVariable("id") Long id);
     @GetMapping("/api/v1/users/{id}/exists")
     Boolean userExists(@PathVariable("id") Long id);
+
+    @GetMapping("/api/v1/profiles/municipalities/{id}/exists")
+    Boolean municipalityExists(@PathVariable("id") Long id);
 }

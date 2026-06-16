@@ -12,4 +12,6 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     List<Report> findAllByUserId(Long userId);
     Report findById(long reportId);
     List<Report> findAllByState(ReportState state);
+    List<Report> findAllByStateIn(List<ReportState> states);
+    List<Report> findAllByDistrictIgnoreCase(String district);
 }

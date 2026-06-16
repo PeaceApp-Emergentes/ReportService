@@ -13,15 +13,19 @@ public class ReportResourceFromEntityAssembler {
                 report.getTitle(),
                 report.getDescription(),
                 report.getLocation(),
+                report.getDistrict(),
                 report.getType(),
                 report.getUserId(),
                 report.getImageUrl(),
+                report.getVideoUrl(),
+                report.getAudioUrl(),
                 report.getLatitude(),
                 report.getLongitude(),
                 report.getState(),
                 report.getRejectionReason(),
                 report.getCreatedAt(),
-                report.getUpdatedAt()
+                report.getUpdatedAt(),
+                Boolean.TRUE.equals(report.getEmergency())
         );
     }
 }

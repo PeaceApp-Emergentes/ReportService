@@ -5,6 +5,7 @@ import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportByIdQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportsByUserIdQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetAllReportsQuery;
 import com.upc.pre.peaceapp.reports.domain.model.queries.GetPublicReportsQuery;
+import com.upc.pre.peaceapp.reports.domain.model.queries.GetReportsByDistrictQuery;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,4 +19,6 @@ public interface ReportQueryService {
     List<Report> handle(GetAllReportsQuery query);
 
     List<Report> handle(GetPublicReportsQuery query);
+
+    List<Report> handle(GetReportsByDistrictQuery query);
 }

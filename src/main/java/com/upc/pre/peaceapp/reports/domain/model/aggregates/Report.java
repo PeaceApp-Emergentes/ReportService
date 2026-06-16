@@ -34,6 +34,9 @@ public class Report extends AuditableAbstractAggregateRoot {
     @Column(name = "location", nullable = false, length = 100)
     private String location;
 
+    @Column(name = "district", length = 80)
+    private String district;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 50)
     private ReportType type;
@@ -43,6 +46,12 @@ public class Report extends AuditableAbstractAggregateRoot {
 
     @Column(name = "image_url")
     private String imageUrl;
+
+    @Column(name = "video_url")
+    private String videoUrl;
+
+    @Column(name = "audio_url")
+    private String audioUrl;
 
     @Column(name = "latitude", nullable = false, length = 30)
     private String latitude;
@@ -58,6 +67,10 @@ public class Report extends AuditableAbstractAggregateRoot {
     @Column(name = "rejection_reason", length = 255)
     private String rejectionReason;
 
+    // Marca de emergencia: la elige el ciudadano al crear; la municipalidad puede cambiarla.
+    @Column(name = "is_emergency", nullable = false)
+    private Boolean emergency = false;
+
 
     // Constructor
     /**
@@ -67,6 +80,7 @@ public class Report extends AuditableAbstractAggregateRoot {
      * @param title The concise title of the report.
      * @param description The detailed description of the incident.
      * @param location The description of the location.
+     * @param district The district resolved from the report coordinates.
      * @param type The type of incident ({@link ReportType}).
      * @param userId The ID of the reporting user.
      * @param imageUrl The URL of the image evidence.
@@ -76,22 +90,29 @@ public class Report extends AuditableAbstractAggregateRoot {
     public Report(String title,
                   String description,
                   String location,
+                  String district,
                   ReportType type,
                   Long userId,
                   String imageUrl,
+                  String videoUrl,
+                  String audioUrl,
                   String latitude,
                   String longitude) {
 
         this.title = title;
         this.description = description;
         this.location = location;
+        this.district = district;
         this.type = type;
         this.userId = userId;
         this.imageUrl = imageUrl;
+        this.videoUrl = videoUrl;
+        this.audioUrl = audioUrl;
         this.latitude = latitude;
         this.longitude = longitude;
         this.state = ReportState.PENDING;
         this.rejectionReason = null;
+        this.emergency = false;
     }
 
 
@@ -112,11 +133,19 @@ public class Report extends AuditableAbstractAggregateRoot {
         this.rejectionReason = null; // por si acaso
     }
 
+    public void attend() {
+        if (state != ReportState.APPROVED)
+            throw new IllegalStateException("Only approved reports can be marked as attended.");
+        this.state = ReportState.ATTENDED;
+        this.emergency = false;
+    }
+
     public void reject(String reason) {
-        if (state != ReportState.IN_REVIEW)
-            throw new IllegalStateException("Only reports in review can be rejected.");
+        if (state == ReportState.REJECTED || state == ReportState.ATTENDED)
+            throw new IllegalStateException("Rejected or attended reports cannot be rejected.");
 
         this.state = ReportState.REJECTED;
         this.rejectionReason = reason;
+        this.emergency = false;
     }
 }
