@@ -64,6 +64,12 @@ public class ReportCommandServiceImpl implements ReportCommandService {
                     return requestedDistrict != null ? requestedDistrict : DistrictResolverService.OUT_OF_COVERAGE;
                 });
 
+        // Un reporte de emergencia (incluido el SOS) requiere una municipalidad con cobertura en la zona.
+        if (Boolean.TRUE.equals(command.isEmergency()) && !userService.hasCoverage(district)) {
+            log.warn("Emergency report rejected: no municipality coverage for district '{}'", district);
+            throw new IllegalArgumentException("No hay una municipalidad con cobertura en tu zona. No se pudo enviar la alerta de emergencia.");
+        }
+
         var report = new Report(
                 command.title(),
                 command.description(),

@@ -19,4 +19,7 @@ public interface UserServiceClient {
 
     @GetMapping("/api/v1/profiles/municipalities/{id}/exists")
     Boolean municipalityExists(@PathVariable("id") Long id);
+
+    @GetMapping("/api/v1/profiles/municipalities/district/{district}/exists")
+    Boolean municipalityExistsByDistrict(@PathVariable("district") String district);
 }

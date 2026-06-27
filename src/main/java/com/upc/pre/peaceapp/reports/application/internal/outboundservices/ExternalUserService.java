@@ -21,4 +21,9 @@ public class ExternalUserService {
     public UserDto fetchById(Long userId) {
         return userServiceClient.getUserById(userId);
     }
+
+    public boolean hasCoverage(String district) {
+        if (district == null || district.isBlank()) return false;
+        return Boolean.TRUE.equals(userServiceClient.municipalityExistsByDistrict(district.trim()));
+    }
 }

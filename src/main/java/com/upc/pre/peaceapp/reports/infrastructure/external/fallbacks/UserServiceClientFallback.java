@@ -34,4 +34,10 @@ public class UserServiceClientFallback implements UserServiceClient {
         log.warn("Fallback: municipalityExists called for user ID: {}", id);
         return false;
     }
+
+    @Override
+    public Boolean municipalityExistsByDistrict(String district) {
+        log.warn("Fallback: municipalityExistsByDistrict called for district: {}", district);
+        return false;
+    }
 }
